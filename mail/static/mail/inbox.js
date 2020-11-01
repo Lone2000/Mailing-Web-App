@@ -13,11 +13,10 @@ document.addEventListener('DOMContentLoaded', function () {
 });
 
 function compose_email() {
-
   // Show compose view and hide other views
   document.querySelector('#emails-view').style.display = 'none';
   document.querySelector('#sent-view').style.display = 'none';
-
+  document.querySelector("#email-view").style.display = 'none';
   document.querySelector('#compose-view').style.display = 'block';
 
   // Clear out composition fields
@@ -33,6 +32,9 @@ function load_mailbox(mailbox) {
   document.querySelector('#compose-view').style.display = 'none';
   document.querySelector("#email-view").style.display = "none";
 
+  // Clear email-view display
+  document.querySelector("#email-view").innerHTML = ` `;
+
   // Show the mailbox name
   document.querySelector('#emails-view').innerHTML = `<h3>${mailbox.charAt(0).toUpperCase() + mailbox.slice(1)}</h3>`;
 
@@ -46,111 +48,137 @@ function load_mailbox(mailbox) {
       // Create Email Element
       emails.forEach(email => {
         // Create Email Div 
-        const element = document.createElement('div');
+        let element = document.createElement('div');
         // Default Class's On div
+        element.id = email.id;
         element.className = "row border p-3 text-dark";
+
+        // Class add on read emails
+        if (email.read) {
+          element.classList.add("bg-light");
+        } else {
+          element.classList.add("font-weight-bold");
+        }
+
         element.innerHTML = `
         <div class="col">From: ${email.sender}</div>
         <div class="col">Subject: ${email.subject}</div> 
         <div class="col">Date: ${email.timestamp}</div>
-        <button id="read">View</buttom>
         `;
-
-        // Make Read Email as a darker Shade + font Weights
-        element.classList.toggle("bg-light", email.read);
-        element.classList.toggle("font-weight-bold", !email.read);
 
         // Target The parent element + Display it to the Parentelement
         const parentE = document.querySelector("#emails-view");
         parentE.appendChild(element);
 
-        document.querySelector("#read").addEventListener('click', (e) => {
-          email_view(email.id);
+        // Add EventListener on Email Element
+        element.addEventListener("click", () => {
+          // Update Read Status of the Email
+          fetch(`/emails/${element.id}`, {
+            method: 'PUT',
+            body: JSON.stringify({
+              read: true
+            })
+          })
+          email_view(element.id, mailbox);
+          // Update Read Status of the Email
         });
 
       });
-
-
-
-
-      // ... do something else with emails ...
     });
 
 }
 
-// Individual Email views
-function email_view(id) {
-  // Show the mailbox and hide other views
-  document.querySelector('#emails-view').style.display = 'none';
-  document.querySelector('#compose-view').style.display = 'none';
-  document.querySelector("#email-view").style.display = "block";
-
-  // Empty The Inner Html of Email_view Div or email will duplicate
-  parentDiv = document.querySelector("#email-view");
-  parentDiv.innerHTML = ``;
-
-  // 'Put' API for updating read status
-  fetch(`/emails/${id}`, {
-    method: 'PUT',
-    body: JSON.stringify({
-      read: true
-    })
-  })
-  // Get Email API
+function email_view(id, mailbox) {
   fetch(`/emails/${id}`)
     .then(response => response.json())
     .then(email => {
       // Print email
       console.log(email);
 
-
-      // Create Element
-      const element = document.createElement('div');
-      // Default Class on div
-      element.className = "border p-3 text-left"
-      element.innerHTML = `
-      <button id="archive" class="float-right">Archive</button>
-      <div><span class="font-weight-bold">From: </span>${email.sender}</div>
-      <div><span class="font-weight-bold">To: </span>${email.recipients}</div>
-      <div><span class="font-weight-bold">Subject: </span>${email.subject}</div> 
-      <div><span class="font-weight-bold">Date: </span>${email.timestamp}</div>
-      <button id="reply">Reply</button>
-      <hr/><div>${email.body}</div>`
-
-      // Target Parent Element + Display
-      const parentE = document.querySelector("#email-view");
-      parentE.appendChild(element);
-
-      if (email.archived) {
-        document.querySelector('#archive').innerHTML = `Unarchive`;
+      // Archived Button TextContent
+      if (!email.archived) {
+        content = "Archive";
       } else {
-        document.querySelector('#archive').innerHTML = `Archive`;
+        content = "Unarchive";
+
       }
 
-      // Add Event listener on Buttons
-      document.addEventListener("click", (event) => {
-        // Call function; Depending on event.target
-        if (event.target.id == 'archive') {
-          // If InnerHtml is archive; Then True
-          if (event.target.innerHTML == 'Archive') {
-            archive_unarchive(id, true);
-          } else {
-            archive_unarchive(id, false);
-          }
+      var element = document.createElement('div');
+      element.className = "p-3"
+      element.innerHTML = `
+          <button id="email-${id}" class="float-right hide p-2">${content}</button>
+          <div><span class=font-weight-bold">From: </span>${email.sender}</div>
+          <div><span class=font-weight-bold">To: </span>${email.recipients}</div>
+          <div><span class=font-weight-bold">Time: </span>${email.timestamp}</div>
+          <div><span class=font-weight-bold">Subject: </span>${email.subject}</div>
+          <button class="hide p-2">Reply</button>  
+          <hr/>
+          <div><span class="font-weight-bold">${email.body}</div>
+        `;
+
+      parentE = document.querySelector("#email-view")
+      parentE.append(element);
+
+      // Display None the Archive if Sent Email Box opened
+      if (mailbox == "sent") {
+        // Fetch all buttons with hide class, then display none when mailbox==sent
+        hidebtn = document.querySelectorAll('.hide')
+        hidebtn.forEach(btn => {
+          btn.style.display = 'none';
+        })
+      }
+
+      // Show the emailview only and hide other views
+      document.querySelector('#emails-view').style.display = 'none';
+      document.querySelector('#compose-view').style.display = 'none';
+      document.querySelector("#email-view").style.display = "block";
+
+      element.addEventListener("click", (event) => {
+        // Target the archive button + call the function
+        if (event.target.id == `email-${id}`) {
+          console.log("Targetted");
+          archivebtn(id, email.archived);
+          // Takes back to Inbox with updated email list
+          location.reload();
         }
-      });
+        if (event.target.textContent == "Reply") {
+          reply(email);
+        }
+      })
 
     });
 
-};
+}
 
-function archive_unarchive(id, archive) {
+function archivebtn(id, state) {
+  // Archive_Unarchive Button
   fetch(`/emails/${id}`, {
     method: 'PUT',
     body: JSON.stringify({
-      archived: archive
+      archived: !state
     })
   })
-  // Load back Inbox of User
-  load_mailbox('inbox');
 };
+
+function reply(email) {
+  // Show compose view and hide other views
+  document.querySelector('#emails-view').style.display = 'none';
+  document.querySelector('#sent-view').style.display = 'none';
+  document.querySelector('#compose-view').style.display = 'block';
+
+  compose_email();
+  // Logic Behind auto-fil subject
+  if (email.subject.includes('Re:') || email.subject.includes('re:')) {
+    subject = email.subject;
+  } else {
+    subject = `Re: ${email.subject}`;
+  }
+
+  // composition fields
+  document.querySelector('#compose-recipients').value = email.sender;
+  document.querySelector('#compose-subject').value = subject;
+  document.querySelector('#compose-body').value = `At ${email.timestamp} ${email.sender} Wrote:
+  ${email.body}
+  `;
+
+}
